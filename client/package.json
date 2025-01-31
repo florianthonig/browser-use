@@ -1,0 +1,38 @@
+{
+  "name": "browser-use-client",
+  "version": "0.1.0",
+  "description": "TypeScript client for browser-use agent API",
+  "main": "dist/agent-client.js",
+  "types": "dist/agent-client.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/node": "^20.8.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.3",
+    "@typescript-eslint/parser": "^6.7.3",
+    "eslint": "^8.50.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "browser-use",
+    "agent",
+    "websocket",
+    "client"
+  ],
+  "author": "",
+  "license": "MIT"
+} 
