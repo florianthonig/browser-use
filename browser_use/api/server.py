@@ -9,7 +9,7 @@ from .websocket.manager import SocketManager
 from .schemas.events import ConnectionStatus
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Load settings
@@ -21,9 +21,12 @@ app = FastAPI(title="Browser-Use Agent API")
 # Create SocketIO server
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=[],  # Will be set from config
-    logger=logger,
-    engineio_logger=logger
+    cors_allowed_origins=['http://localhost:8080'],  # Frontend URL
+    logger=True,
+    engineio_logger=True,
+    ping_timeout=60,
+    ping_interval=25,
+    always_connect=True
 )
 
 # Create SocketIO app
@@ -34,7 +37,7 @@ socket_manager = SocketManager(sio)
 
 # Merge FastAPI and SocketIO apps
 main_app = FastAPI()
-main_app.mount("/ws", socket_app)  # Socket.IO endpoints
+main_app.mount("/socket.io", socket_app)  # Standard Socket.IO path
 main_app.mount("/", app)  # Regular FastAPI endpoints
 
 async def verify_rest_api_key(x_api_key: str = Header(...)):
@@ -46,42 +49,59 @@ async def verify_rest_api_key(x_api_key: str = Header(...)):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the application on startup."""
-    # Setup CORS
+    # Setup CORS for HTTP endpoints
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=['http://localhost:8080'],  # Frontend URL
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"]
     )
     
     # Update SocketIO CORS settings
-    sio.cors_allowed_origins = settings.cors_origins
+    sio.cors_allowed_origins = ['http://localhost:8080']  # Frontend URL
 
 # Socket.IO event handlers
 @sio.event
 async def connect(sid, environ):
     """Handle client connection."""
     logger.info(f"Client connected: {sid}")
-    
-    # Get API key from query parameters
-    ws_api_key = environ.get('HTTP_X_API_KEY')
+    logger.info(f"Full environ: {environ}")
+    logger.info(f"Query string: {environ.get('QUERY_STRING', 'no query string')}")
+    logger.info(f"Headers: {environ.get('headers', 'no headers')}")
     
     try:
-        # Verify API key
-        if not ws_api_key:
+        # Get auth data from Socket.IO handshake
+        query_string = environ.get('QUERY_STRING', '')
+        logger.info(f"Parsing query string: {query_string}")
+        
+        if 'auth=' not in query_string:
+            raise ValueError("No auth parameter in query string")
+        
+        # Extract auth parameter value
+        auth_param = [param for param in query_string.split('&') if param.startswith('auth=')]
+        if not auth_param:
+            raise ValueError("No auth parameter found")
+            
+        auth = auth_param[0].split('auth=')[1]
+        logger.info(f"Extracted auth: {auth[:8]}...")  # Log first 8 chars for security
+        
+        if not auth:
             raise ValueError("No API key provided")
         
-        if ws_api_key != settings.WS_API_KEY:
+        if auth != settings.WS_API_KEY:
             raise ValueError("Invalid API key")
         
+        logger.info(f"Client {sid} authenticated successfully")
         # Send connection success event
         await sio.emit('status', 
                       ConnectionStatus(status="connected", message="Successfully connected").dict(),
                       room=sid)
         
     except Exception as e:
-        logger.error(f"Authentication failed: {str(e)}")
+        logger.error(f"Authentication failed for client {sid}: {str(e)}")
+        logger.exception("Full error:")  # This will log the full stack trace
         # Disconnect client on authentication failure
         await sio.emit('status', 
                       ConnectionStatus(status="error", message=str(e)).dict(),
