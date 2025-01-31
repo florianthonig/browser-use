@@ -1,19 +1,19 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
-import jwt
-from datetime import datetime, timedelta
 import logging
 from typing import Optional
 
 from .config import Settings
 from .websocket.manager import SocketManager
-from .auth import get_current_user, create_access_token
 from .schemas.events import ConnectionStatus
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Load settings
+settings = Settings()
 
 # Create FastAPI app
 app = FastAPI(title="Browser-Use Agent API")
@@ -37,11 +37,15 @@ main_app = FastAPI()
 main_app.mount("/ws", socket_app)  # Socket.IO endpoints
 main_app.mount("/", app)  # Regular FastAPI endpoints
 
+async def verify_rest_api_key(x_api_key: str = Header(...)):
+    """Verify REST API key for HTTP endpoints."""
+    if x_api_key != settings.REST_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return x_api_key
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize the application on startup."""
-    settings = Settings()
-    
     # Setup CORS
     app.add_middleware(
         CORSMiddleware,
@@ -60,20 +64,16 @@ async def connect(sid, environ):
     """Handle client connection."""
     logger.info(f"Client connected: {sid}")
     
-    # Get authentication token from query parameters
-    auth_token = environ.get('HTTP_AUTHORIZATION', '').replace('Bearer ', '')
+    # Get API key from query parameters
+    ws_api_key = environ.get('HTTP_X_API_KEY')
     
     try:
-        # Verify token
-        if not auth_token:
-            raise ValueError("No authentication token provided")
+        # Verify API key
+        if not ws_api_key:
+            raise ValueError("No API key provided")
         
-        user = await get_current_user(auth_token)
-        if not user:
-            raise ValueError("Invalid authentication token")
-        
-        # Store user info in session
-        await socket_manager.set_session_data(sid, {"user": user})
+        if ws_api_key != settings.WS_API_KEY:
+            raise ValueError("Invalid API key")
         
         # Send connection success event
         await sio.emit('status', 
@@ -93,6 +93,9 @@ async def disconnect(sid):
     """Handle client disconnection."""
     logger.info(f"Client disconnected: {sid}")
     await socket_manager.remove_session(sid)
+
+# Add API key dependency to all routes
+app.dependency_overrides[Depends] = verify_rest_api_key
 
 # Export the main application
 api = main_app 

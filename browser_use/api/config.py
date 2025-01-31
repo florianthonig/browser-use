@@ -5,13 +5,18 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """API configuration settings."""
     
-    # JWT Settings
-    jwt_secret_key: str
-    jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 30
+    # API Key Settings
+    REST_API_KEY: str
+    WS_API_KEY: str
     
     # CORS Settings
-    cors_origins: List[str] = ["*"]
+    CORS_ORIGINS: str = "*"  # Comma-separated list of origins or "*" for all
+    
+    @property
+    def cors_origins(self) -> List[str]:
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
     
     # Socket.IO Settings
     socketio_ping_timeout: int = 5
