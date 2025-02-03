@@ -16,8 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Expose the port the app runs on
-EXPOSE 8000
+# Expose both REST and WebSocket ports
+EXPOSE ${REST_PORT:-8000}
+EXPOSE ${WS_PORT:-8001}
 
-# Start the application
-CMD ["uvicorn", "browser_use.api.server:api", "--host", "0.0.0.0", "--port", "8000", "--reload"] 
+# Start both servers using Python multiprocessing
+CMD ["python", "-m", "browser_use.api.server"] 

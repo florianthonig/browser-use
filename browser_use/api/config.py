@@ -1,16 +1,15 @@
 from typing import List
 from pydantic_settings import BaseSettings
-
-
+import os
 class Settings(BaseSettings):
     """API configuration settings."""
     
     # API Key Settings
-    REST_API_KEY: str
-    WS_API_KEY: str
+    REST_API_KEY: str = os.getenv('REST_API_KEY')
+    WS_API_KEY: str = os.getenv('WS_API_KEY')
     
     # CORS Settings
-    CORS_ORIGINS: str = "*"  # Comma-separated list of origins or "*" for all
+    CORS_ORIGINS: str = os.getenv('CORS_ORIGINS')  # Comma-separated list of origins or "*" for all
     
     @property
     def cors_origins(self) -> List[str]:
